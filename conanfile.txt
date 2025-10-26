@@ -1,0 +1,7 @@
+[requires]
+freeglut/3.2.2
+
+[options]
+# On force l'utilisation de X11
+freeglut/*:with_x11=True
+freeglut/*:with_wayland=False
