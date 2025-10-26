@@ -2,7 +2,7 @@
 
 *This boilerplate is designed to help students easily use FreeGLUT with OpenGL, and it is fully functional on both Windows and Linux.*
 
-Ce projet est un kit de démarrage prêt à l'emploi conçu pour les étudiants du **[Master 1 EEA de l'Université de Montpellier](https://www.umontpellier.fr/)**. Son objectif est de fournir un environnement de développement C++ avec OpenGL et FreeGLUT fonctionnel en quelques minutes, sans installation manuelle complexe et sans dépendre de Visual Studio.
+Ce projet est un kit de démarrage prêt à l'emploi conçu pour les étudiants du **[Master 1 EEA de l'Université de Montpellier](https://www.umontpellier.fr/)** 🇫🇷. Son objectif est de fournir un environnement de développement C++ avec OpenGL et FreeGLUT fonctionnel en quelques minutes, sans installation manuelle complexe et sans dépendre de Visual Studio.
 
 
 
