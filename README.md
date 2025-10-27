@@ -21,7 +21,7 @@ Ce projet est un kit de démarrage prêt à l'emploi conçu pour les étudiants 
 ## Prérequis
 
 *   **Système d'exploitation :**
-    *   Windows 10 / 11
+    *   Windows 11
     *   Linux (Ubuntu, Debian ou distributions similaires recommandées)
 *   **Architecture :** x86_64 (64-bit)
 *   **Connexion Internet :** Requise pour le premier lancement afin de télécharger les dépendances.
