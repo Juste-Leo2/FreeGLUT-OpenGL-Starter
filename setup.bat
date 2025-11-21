@@ -2,7 +2,7 @@
 setlocal
 
 echo ==========================================================
-echo       INITIALISATION DE L'ENVIRONNEMENT DE DEVELOPPEMENT
+echo       INITIALISATION DE L'ENVIRONNEMENT (GCC 13 + QT)
 echo ==========================================================
 echo.
 
@@ -21,7 +21,7 @@ if %errorlevel% neq 0 (echo ECHEC: Impossible de creer l'environnement Python.& 
 echo    [OK] Environnement Python cree.
 
 REM --- Etape 3: Installation des dependances Python ---
-echo [3/8] Installation des dependances Python...
+echo [3/8] Installation des dependances Python (PyQt6)...
 call .\.venv\Scripts\activate.bat
 "%UV_EXE%" pip install -r requirements.txt > nul
 if %errorlevel% neq 0 (
@@ -30,12 +30,13 @@ if %errorlevel% neq 0 (
 )
 echo    [OK] Dependances Python installees.
 
-REM --- Etape 4: Telechargement du compilateur C++ (MinGW) ---
-echo [4/8] Telechargement du compilateur C++ (MinGW)...
+REM --- Etape 4: Telechargement du compilateur C++ (MinGW GCC 13.2.0) ---
+echo [4/8] Telechargement du compilateur C++ (MinGW GCC 13.2.0)...
 if not exist "vendor" mkdir vendor
 cd vendor
 if not exist "mingw64" (
-    curl -L -o mingw.7z "https://github.com/niXman/mingw-builds-binaries/releases/download/15.2.0-rt_v13-rev0/x86_64-15.2.0-release-posix-seh-ucrt-rt_v13-rev0.7z"
+    REM URL mise a jour vers GCC 13.2.0
+    curl -L -o mingw.7z "https://github.com/niXman/mingw-builds-binaries/releases/download/13.2.0-rt_v11-rev1/x86_64-13.2.0-release-posix-seh-ucrt-rt_v11-rev1.7z"
     if %errorlevel% neq 0 (echo ECHEC: Telechargement de MinGW impossible.& cd .. & goto:error)
     tar -xf mingw.7z
     del mingw.7z
@@ -44,7 +45,6 @@ cd ..
 echo    [OK] Compilateur C++ configure.
 
 REM --- Etape 5: Telechargement de CMake ---
-REM ### NOUVELLE ETAPE AJOUTEE ICI ###
 echo [5/8] Telechargement de CMake...
 cd vendor
 if not exist "cmake" (
@@ -54,7 +54,6 @@ if not exist "cmake" (
     
     echo    Extraction de l'archive...
     powershell -ExecutionPolicy ByPass -Command "Expand-Archive -Path 'cmake.zip' -DestinationPath '.\cmake_temp' -Force" > nul
-    REM Le zip contient un dossier parent, on deplace le contenu
     for /d %%i in (.\cmake_temp\*) do move "%%i" ".\cmake"
     rmdir cmake_temp
     del cmake.zip
@@ -72,8 +71,6 @@ if not exist "conan_cli" (
     
     echo    Creation du dossier de destination...
     mkdir conan_cli
-    
-    echo    Extraction de l'archive dans le dossier dedie...
     powershell -ExecutionPolicy ByPass -Command "Expand-Archive -Path 'conan.zip' -DestinationPath '.\conan_cli' -Force" > nul
     del conan.zip
 )
@@ -83,7 +80,6 @@ echo    [OK] Conan CLI configure.
 REM --- Etape 7: Preparation de l'environnement de compilation ---
 echo [7/8] Preparation de l'environnement de compilation...
 set "MINGW_BIN_PATH=%cd%\vendor\mingw64\bin"
-REM ### MODIFICATION ICI: AJOUT DU CHEMIN DE CMAKE ###
 set "CMAKE_BIN_PATH=%cd%\vendor\cmake\bin"
 set "PATH=%MINGW_BIN_PATH%;%CMAKE_BIN_PATH%;%PATH%"
 set "C_COMPILER=%cd%\vendor\mingw64\bin\gcc.exe"
@@ -96,30 +92,31 @@ set "CXX_COMPILER=%CXX_COMPILER:\=\\%"
     echo arch=x86_64
     echo os=Windows
     echo compiler=gcc
-    echo compiler.version=15
+    REM Mise a jour de la version du compilateur dans le profil
+    echo compiler.version=13
     echo compiler.libcxx=libstdc++11
     echo build_type=Release
     echo [conf]
     echo tools.build:compiler_executables={"c": "%C_COMPILER%", "cpp": "%CXX_COMPILER%"}
 ) > mingw_profile
-echo    [OK] Profil Conan 'mingw_profile' et PATH configures.
+echo    [OK] Profil Conan 'mingw_profile' (v13) et PATH configures.
 
 REM --- Etape 8: Installation de freeglut et generation des infos ---
-echo [8/8] Installation de freeglut via Conan et generation des infos de build...
+echo [8/8] Installation de freeglut via Conan...
 if not exist "build" mkdir build
 
 set "CONAN_EXE=%cd%\vendor\conan_cli\conan.exe"
 
-if not exist "%CONAN_EXE%" (echo ECHEC: conan.exe non trouve a l'emplacement attendu!& goto:error)
+if not exist "%CONAN_EXE%" (echo ECHEC: conan.exe non trouve!& goto:error)
 
 "%CONAN_EXE%" install . --output-folder=build --profile:host=.\mingw_profile --profile:build=.\mingw_profile --build=missing --format=json > build\conan_info.json
 if %errorlevel% neq 0 (
-    echo ECHEC: L'installation de freeglut ou la generation du JSON a echoue.
+    echo ECHEC: Conan a echoue.
     call .\.venv\Scripts\deactivate.bat & goto:error
 )
 
 call .\.venv\Scripts\deactivate.bat
-echo    [OK] Fichier d'information 'conan_info.json' genere.
+echo    [OK] Dependances C++ installees.
 
 echo.
 echo ==========================================================
@@ -132,7 +129,7 @@ goto:eof
 :error
 echo.
 echo !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-echo    UNE ERREUR EST SURVENUE PENDANT L'INSTALLATION.
+echo    UNE ERREUR EST SURVENUE.
 echo !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 echo.
 pause

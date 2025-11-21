@@ -1,153 +1,157 @@
-# src/file_manager.py
 import os
-from tkinter import filedialog, messagebox
+from PyQt6.QtWidgets import QFileDialog, QMessageBox
 from . import config
 
 class FileManager:
     def __init__(self, app):
         self.app = app
-        self.open_tabs = {}
+        self.open_tabs = {} # Clé: Tab Name, Valeur: dict info
 
-    def on_text_changed_proxy(self, event=None):
+    def on_text_changed_proxy(self):
         tab_name = self.app.get_current_tab_name()
         if not tab_name or tab_name not in self.open_tabs: return
         
         info = self.open_tabs[tab_name]
-
         if not info["is_dirty"]:
             info["is_dirty"] = True
             new_name = f"{tab_name}*"
             self._rename_tab_data(tab_name, new_name)
 
     def _rename_tab_data(self, old_name, new_name):
-        self.app.rename_tab(old_name, new_name)
+        self.app.set_tab_name(old_name, new_name)
         info = self.open_tabs.pop(old_name)
         self.open_tabs[new_name] = info
-        self.app.set_active_tab(new_name)
 
     def add_tab(self, filepath=None, content=""):
         base_name = os.path.basename(filepath) if filepath else "Nouveau"
         tab_name = base_name
         i = 1
-        existing_names = list(self.open_tabs.keys())
-        while tab_name in existing_names or f"{tab_name}*" in existing_names:
+        existing = list(self.open_tabs.keys())
+        while tab_name in existing or f"{tab_name}*" in existing:
             name, ext = os.path.splitext(base_name)
             tab_name = f"{name}_{i}{ext}"
             i += 1
         
-        editor, linenumbers = self.app.add_editor_tab(tab_name, content)
-        if not editor: return
-
+        editor = self.app.add_editor_tab(tab_name, content)
         self.open_tabs[tab_name] = {
-            "editor": editor, "linenumbers": linenumbers, 
-            "filepath": filepath, "is_dirty": False
+            "editor": editor, 
+            "filepath": filepath, 
+            "is_dirty": False
         }
-
+        
+        # Si nouveau fichier, on force la détection 'modifié' si l'utilisateur tape
         if filepath is None:
-            self.on_text_changed_proxy()
+            # Petite astuce pour ne pas marquer "dirty" immédiatement à l'ouverture
+            pass 
 
     def new_file(self):
-        info = self.get_current_tab_info()
-        tab_name = self.app.get_current_tab_name()
-        if info and info["is_dirty"]:
-            response = messagebox.askyesnocancel("Sauvegarder ?", f"Voulez-vous enregistrer les modifications de {tab_name.rstrip('*')} ?")
-            if response is True:
-                if not self.save_current_file(): return
-            elif response is None: return
         self.add_tab(filepath=None, content=config.DEFAULT_CPP_CODE)
 
     def open_file(self, filepath):
+        # Vérifier si déjà ouvert
         for name, info in self.open_tabs.items():
-            if info["filepath"] == filepath:
+            if info["filepath"] == filepath or info["filepath"] == os.path.abspath(filepath):
                 self.app.set_active_tab(name)
                 return
+        
         try:
-            with open(filepath, "r", encoding="utf-8") as f: content = f.read()
+            with open(filepath, "r", encoding="utf-8") as f:
+                content = f.read()
             self.add_tab(filepath, content)
         except Exception as e:
-            self.app.show_warning("Erreur d'ouverture", f"Impossible d'ouvrir le fichier {filepath}:\n{e}")
+            self.app.append_output(f"Erreur ouverture {filepath}: {e}\n")
 
     def open_file_dialog(self):
-        filepaths = filedialog.askopenfilenames(title="Importer un fichier C++", filetypes=[("Fichiers C++", "*.cpp *.h"), ("Tous les fichiers", "*.*")])
-        for filepath in filepaths:
-            self.open_file(filepath)
-
-    def get_current_tab_info(self):
-        current_tab_name = self.app.get_current_tab_name()
-        return self.open_tabs.get(current_tab_name)
-
-    def get_open_filepaths_in_order(self):
-        ordered_paths = []
-        ordered_tab_names = self.app.get_all_tab_names()
-        for tab_name in ordered_tab_names:
-            info = self.open_tabs.get(tab_name)
-            if info and info["filepath"]:
-                ordered_paths.append(info["filepath"])
-        return ordered_paths
+        files, _ = QFileDialog.getOpenFileNames(
+            self.app, 
+            "Importer", 
+            "", 
+            "C++ Files (*.cpp *.h);;All Files (*)"
+        )
+        if files:
+            for f in files:
+                self.open_file(f)
 
     def save_current_file(self):
-        current_tab_name = self.app.get_current_tab_name()
-        info = self.open_tabs.get(current_tab_name)
-        if info is None: return None
+        tab_name = self.app.get_current_tab_name()
+        if not tab_name: return None
+        info = self.open_tabs.get(tab_name)
         
-        # Si le fichier n'a pas de chemin, on délègue à "Enregistrer sous"
         if info["filepath"] is None:
             return self.save_current_file_as()
         
-        # Logique de sauvegarde principale
-        content = info["editor"].get("1.0", "end-1c")
-        with open(info["filepath"], "w", encoding="utf-8") as f: f.write(content)
-        
-        # Mise à jour de l'état et de l'UI
-        if info["is_dirty"]:
-            info["is_dirty"] = False
-            # Le nouveau nom est TOUJOURS basé sur le nom du fichier, c'est plus sûr
-            new_name = os.path.basename(info["filepath"])
-            if current_tab_name != new_name:
-                self._rename_tab_data(current_tab_name, new_name)
-        
-        self.app.append_output(f"Fichier '{os.path.basename(info['filepath'])}' enregistré.\n")
-        
-        # Forcer le rafraîchissement de l'UI pour que tout soit visible
-        self.app.update()
-        
-        return info["filepath"]
+        content = info["editor"].toPlainText()
+        try:
+            with open(info["filepath"], "w", encoding="utf-8") as f:
+                f.write(content)
+            
+            if info["is_dirty"]:
+                info["is_dirty"] = False
+                clean_name = tab_name.rstrip('*')
+                if tab_name != clean_name:
+                    self._rename_tab_data(tab_name, clean_name)
+            
+            self.app.append_output(f"Enregistré: {os.path.basename(info['filepath'])}\n")
+            return info["filepath"]
+        except Exception as e:
+            self.app.append_output(f"Erreur sauvegarde: {e}\n")
+            return None
 
     def save_current_file_as(self):
-        info = self.get_current_tab_info()
-        if info is None: return None
+        tab_name = self.app.get_current_tab_name()
+        if not tab_name: return None
+        info = self.open_tabs.get(tab_name)
 
-        new_filepath = filedialog.asksaveasfilename(
-            initialdir=config.SAVE_DIR, title="Enregistrer sous...", 
-            defaultextension=".cpp", filetypes=[("Fichiers C++", "*.cpp"), ("Tous les fichiers", "*.*")]
+        path, _ = QFileDialog.getSaveFileName(
+            self.app, 
+            "Enregistrer sous", 
+            config.SAVE_DIR, 
+            "C++ Files (*.cpp);;All Files (*)"
         )
-        if not new_filepath: return None
-
-        # La seule chose que fait "Enregistrer sous", c'est assigner un nouveau chemin
-        info["filepath"] = new_filepath
-        info["is_dirty"] = True # On s'assure qu'il est marqué comme "modifié" pour forcer la mise à jour
         
-        self.app.append_output(f"Fichier enregistré sous '{os.path.basename(new_filepath)}'.\n")
+        if not path: return None
         
-        # ...puis on appelle la fonction de sauvegarde standard qui fera tout le travail.
+        info["filepath"] = path
+        info["is_dirty"] = True # Pour forcer le renommage dans save_current_file
         return self.save_current_file()
 
     def close_current_tab(self):
-        tab_name = self.app.get_current_tab_name()
+        idx = self.app.tab_widget.currentIndex()
+        if idx != -1:
+            self.close_tab_by_index(idx)
+
+    def close_tab_by_index(self, index):
+        tab_name = self.app.tab_widget.tabText(index)
         info = self.open_tabs.get(tab_name)
-        if not info: return
-
-        if info["is_dirty"]:
-            response = messagebox.askyesnocancel("Sauvegarder ?", f"Voulez-vous enregistrer les modifications de {tab_name.rstrip('*')} ?")
-            if response is True:
-                if not self.save_current_file(): return
-            elif response is None: return
         
-        self.app.delete_tab(tab_name)
-        self.open_tabs.pop(tab_name)
+        if info and info["is_dirty"]:
+            reply = QMessageBox.question(
+                self.app, "Sauvegarder ?", 
+                f"Sauvegarder les modifications de {tab_name} ?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel
+            )
+            
+            if reply == QMessageBox.StandardButton.Yes:
+                if not self.save_current_file(): return # Annulé ou échec
+            elif reply == QMessageBox.StandardButton.Cancel:
+                return
 
-        if not self.open_tabs:
-            self.add_tab(filepath=None, content=config.DEFAULT_CPP_CODE)
-        
+        self.app.tab_widget.removeTab(index)
+        if tab_name in self.open_tabs:
+            del self.open_tabs[tab_name]
+
+    def get_current_tab_info(self):
+        name = self.app.get_current_tab_name()
+        return self.open_tabs.get(name)
+
+    def get_open_filepaths_in_order(self):
+        paths = []
+        for i in range(self.app.tab_widget.count()):
+            name = self.app.tab_widget.tabText(i)
+            info = self.open_tabs.get(name)
+            if info and info["filepath"]:
+                paths.append(info["filepath"])
+        return paths
+
     def has_dirty_files(self):
-        return any(info["is_dirty"] for info in self.open_tabs.values())
+        return any(i["is_dirty"] for i in self.open_tabs.values())
