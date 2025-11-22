@@ -23,6 +23,7 @@ Ce projet est un kit de démarrage prêt à l'emploi conçu pour les étudiants 
 *   **Système d'exploitation :**
     *   Windows 11
     *   Linux (Ubuntu, Debian ou distributions similaires recommandées)
+    *   MAC (expérimentale)
 *   **Architecture :** x86_64 (64-bit)
 *   **Connexion Internet :** Requise pour le premier lancement afin de télécharger les dépendances.
 
